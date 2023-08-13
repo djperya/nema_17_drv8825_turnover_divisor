@@ -1,26 +1,38 @@
-#include <AccelStepper.h>
-#define OLED_SOFT_BUFFER_64
+// Подключение библиотек
+#include <AccelStepper.h> 
 #include <GyverOLED.h>
-GyverOLED<SSD1306_128x64> oled;
 #include <EncButton.h>
-EncButton<EB_TICK, 2, 3, 9> enc;
-//#define BUTTON_PIN 12
-#define STEP_PIN 7// Подключение шагового двигателя к пинам
-#define DIR_PIN 6// Подключение шагового двигателя к пинам
+
+#define OLED_SOFT_BUFFER_64 // Буфер на стороне МК
+GyverOLED<SSD1306_128x64> oled; // Обьект дисплея
+
+EncButton<EB_TICK, 2, 3, 9> enc; // энкодер с кнопкой <A, B, KEY>
+const int RUN_BUTTON_PIN = 12; // дополнительная кнопка на пине 12
+
+int buzzerPin = 11; //Пищалка
+
+#define STEP_PIN 7 // Подключение шагового двигателя к пинам
+#define DIR_PIN 6 // Подключение шагового двигателя к пинам
+
 int microstepping ;
+
 #define MS1_PIN 4  // Подключите к пину MS1 на DRV8825
 #define MS2_PIN 5  // Подключите к пину MS2 на DRV8825
 #define MS3_PIN 8  // Подключите к пину MS3 на DRV8825
-const int RUN_BUTTON_PIN = 12; // Объявление пина для кнопки "run"
-// Функция-обработчик прерывания для кнопки "run"
+
+// Функция-обработчик прерывания для дополнительной кнопки
 bool previousRunState = false;
+
 // Создание объекта шагового двигателя
 AccelStepper stepper(AccelStepper::DRIVER, STEP_PIN, DIR_PIN);
+
 //bool isMoving = false;
+
 // Флаг, указывающий, запущен ли двигатель
 volatile bool isRunning = false;
+//Меню
 #define ITEMS 12
-int buzzerPin = 11;
+
 const char i0[] PROGMEM = "  Steps      :";
 const char i1[] PROGMEM = "  Speed      :";
 const char i2[] PROGMEM = "  MicroStep  :";
@@ -49,31 +61,34 @@ bool menuChange = false;
 
 void setup() {
    Serial.begin(9600);
-
    enc.setHoldTimeout(8000); // установка таймаута удержания кнопки
-    pinMode (buzzerPin, OUTPUT); //BUZZER
+   pinMode (buzzerPin, OUTPUT); //BUZZER
    oled.init(); // инициализация экрана
    oled.setContrast(255);  //Яркость экрана
    attachInterrupt(0, isr, CHANGE);
    attachInterrupt(1, isr, CHANGE);
+  
    data[0] = 2; //делитель вращения
    data[1] = 300; //скорость вращения
    data[2] = 32; //режим дробления шага 
    data[3] = 200; //шаги на 1 оборот
-   data[4] = 500;
+   data[4] = 500; //Ускорение
+  
    setMicrostepping(data[2]);
    pinMode(RUN_BUTTON_PIN, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(RUN_BUTTON_PIN), runButtonISR, FALLING);
-  //setMicrostepping(data[2]);
+  
 // Установка пинов MS1, MS2 и MS3 как выходов
 pinMode(MS1_PIN, OUTPUT);
   pinMode(MS2_PIN, OUTPUT);
   pinMode(MS3_PIN, OUTPUT);
+  
 // Установка максимальной скорости и ускорения
   stepper.setMaxSpeed(5000);
   Serial.print("Max Speed set to: ");
   Serial.println(data[1]);
   stepper.setAcceleration(data[4]);
+  
    // Направление движения
   stepper.setSpeed(data[1]); // Установите положительное значение для движения вперед
 
@@ -81,6 +96,7 @@ pinMode(MS1_PIN, OUTPUT);
 void runButtonISR() {
   isRunning = !isRunning;
 }
+//Переключерие режимов микрошага 1, 2, 4, 8, 16, 32
 void setMicrostepping(uint16_t microsteps) {
   microstepping = microsteps;
   if (microsteps == 1) {
@@ -122,11 +138,12 @@ void setMicrostepping(uint16_t microsteps) {
 }
 
 void isr() {
-  enc.tickISR();
+  enc.tickISR(); // специальный тикер прерывания
 }
 
 void loop() {
-  enc.tick();
+  
+  enc.tick();  // опрос энкодера происходит здесь
 
   int buttonState = digitalRead(RUN_BUTTON_PIN);
   static int lastButtonState = HIGH;
@@ -137,7 +154,7 @@ void loop() {
     stepper.moveTo((stepsToMove * data[2]) / data[0]);
      Serial.println("move");
      isRunning = true; 
-     Serial.println("run");// Установите флаг isRunning в true
+     Serial.println("run"); // Установите флаг isRunning в true
     while (stepper.distanceToGo() != 0) {
     stepper.run();
     
@@ -258,9 +275,6 @@ void loop() {
     oled.setCursor(40, 3);
     oled.setScale(4);
     oled.print(data[0]);
- 
- 
-
 
     if (allowChange) {
       oled.setCursor(0, 16);
@@ -273,8 +287,6 @@ void loop() {
     }
     oled.update();
   }
-
-
 }
 
 void printPointer(uint16_t pointer) {
